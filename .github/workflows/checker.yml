@@ -1,0 +1,91 @@
+name: Check Helm Repositories
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight
+  workflow_dispatch:  # Allow manual triggering
+  push:
+    paths:
+      - 'README.md'
+
+jobs:
+  check-repos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Create helm-check script
+        run: |
+          cat > check_helm_repos.py << 'EOF'
+          import re
+          import requests
+          from urllib.parse import urljoin
+          import sys
+
+          def check_helm_repo(url):
+              try:
+                  # Try to fetch index.yaml which should exist in every helm repo
+                  index_url = urljoin(url.rstrip('/') + '/', 'index.yaml')
+                  response = requests.get(index_url, timeout=10)
+                  return response.status_code == 200
+              except:
+                  return False
+
+          def process_readme():
+              with open('README.md', 'r') as file:
+                  content = file.read()
+
+              # Split content into lines
+              lines = content.split('\n')
+              modified = False
+
+              for i, line in enumerate(lines):
+                  if 'helm repo add' in line and '```' not in line:
+                      # Remove existing status comment if present
+                      line = re.sub(r'#\s*(working|dont work)\s*$', '', line).rstrip()
+                      
+                      # Extract repo URL
+                      match = re.search(r'helm repo add \S+ (.+?)(?:\s+#|$)', line)
+                      if match:
+                          url = match.group(1).strip()
+                          status = "# working" if check_helm_repo(url) else "# dont work"
+                          lines[i] = f"{line} {status}"
+                          modified = True
+                          print(f"Checking {url}: {status}")
+
+              if modified:
+                  with open('README.md', 'w') as file:
+                      file.write('\n'.join(lines))
+                  return True
+              return False
+
+          if __name__ == "__main__":
+              if process_readme():
+                  sys.exit(0)  # Changes made
+              else:
+                  sys.exit(1)  # No changes needed
+          EOF
+
+      - name: Run helm repo check
+        run: python check_helm_repos.py
+
+      - name: Commit changes
+        if: success()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update helm repository status [skip ci]"
+          git push
