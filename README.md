@@ -12,6 +12,8 @@ helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ #
 
 helm repo add harbor https://helm.goharbor.io # working
 
+helm repo add cloudflare https://cloudflare.github.io/helm-charts
+
 helm repo add cloudhippie https://cloudhippie.github.io/charts # working
 
 helm repo add minicloudlabs https://minicloudlabs.github.io/helm-charts # working
