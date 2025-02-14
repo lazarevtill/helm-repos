@@ -2,7 +2,7 @@ name: Check Helm Repositories
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Run daily at midnight
+    - cron: '0 0 * * 0'  # Run weekly at midnight
   workflow_dispatch:  # Allow manual triggering
   push:
     paths:
